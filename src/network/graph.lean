@@ -46,6 +46,12 @@ namespace network
     noncomputable def output (η : network.graph) (p : port.id) : option value :=
       option.join ((η.data p.rtr).output.nth p.prt)
 
+    noncomputable def input (η : network.graph) (p : port.id) : option value :=
+      option.join ((η.data p.rtr).input.nth p.prt)
+
+    noncomputable def dₒ (η : network.graph) (i : reaction.id) : finset port.id :=
+      (η.rcn i).dₒ.image (λ p, {port.id . rtr := i.rtr, prt := p})
+
     -- Updating a network graph with an equivalent reactor keeps their `data` equivalent.
     lemma update_with_equiv_rtr_all_data_equiv {η : network.graph} (i : reactor.id) (rtr : reactor) :
       η.data i ≈ rtr → ∀ r, η.data r ≈ (η.update_data i rtr).data r :=

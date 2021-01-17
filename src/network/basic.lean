@@ -22,6 +22,12 @@ namespace network
       refl := by simp [(≈)]
     }
 
+  def eq_except_r (n n' : network) (i : reactor.id) : Prop :=
+    n ≈ n' ∧ ∀ x ≠ i, n.η.data x = n'.η.data x
+
+  def eq_except_o (n n' : network) (i : port.id) : Prop :=
+    let r := i.rtr in n.eq_except_r n' r ∧ (n.η.data r).eq_except (n'.η.data r) i.prt
+
   noncomputable def edges_out_of (n : network) (p : port.id) : finset {e // e ∈ n} :=
     n.η.edges.attach.filter (λ e, (e : graph.edge).src = p)
 
@@ -69,13 +75,5 @@ namespace network
       apply digraph.update_data_comm,
       exact h,
     end 
-
-    lemma update_input_comm {i i' : port.id} (h : i ≠ i') (v v' : option value) (n : network) :
-      (n.update_input i v).update_input i' v' = (n.update_input i' v').update_input i v :=
-      begin
-        unfold update_input,
-        by_cases hᵣ : i.rtr = i'.rtr
-          ; sorry
-      end
 
 end network
