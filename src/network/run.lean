@@ -6,44 +6,49 @@ import network.algorithms
 
 namespace network
 
-  noncomputable def propagate_edge (η : network.graph) (e : graph.edge) : network.graph := 
-    η.update_input e.dst (η.output e.src)
+  noncomputable def propagate_edge (σ : network) : {n // n ≈ σ} → {e // e ∈ σ} → {n // n ≈ σ} := λ n e,
+    {
+      val := (n : network).update_input (e : graph.edge).dst (σ.output (e : graph.edge).src),
+      property := trans_of (≈) (update_input_equiv n _ _) (n.property)
+    }
 
-  lemma propagate_edge_equiv (η : network.graph) (e : graph.edge) :
-    propagate_edge η e ≈ η :=
+  lemma prop_edge_comm (σ : network) : 
+    right_commutative (propagate_edge σ) :=
+    begin
+      unfold right_commutative,
+      intros n e e',
+      by_cases (e : graph.edge) = ↑e',
+        rw (subtype.eq h),
+        {
+          have hₑ  : ↑e  ∈ (n : network), from edge_mem_equiv_trans n.property e.property,
+          have hₑ' : ↑e' ∈ (n : network), from edge_mem_equiv_trans n.property e'.property,
+          have hᵤ, from (n : network).unique_ins,
+          rw graph.has_unique_port_ins at hᵤ,
+          replace h : ↑e ≠ ↑e' := by exact h,
+          have h_d : (e : graph.edge).dst ≠ (e' : graph.edge).dst, from hᵤ _ _ hₑ hₑ' h,
+          unfold propagate_edge,
+          simp,
+          exact update_input_comm h_d _ _ ↑n
+        }
+    end
+
+  lemma propagate_edge_equiv (σ : network) :
+    ∀ n e, ↑(σ.propagate_edge n e) ≈ (n : network) :=
     begin
       unfold propagate_edge,
       apply graph.update_input_equiv
     end
 
-  lemma propagate_edge_out_inv (η : network.graph) (e : graph.edge) :
-    ∀ o, (propagate_edge η e).output o = η.output o :=
+  lemma propagate_edge_out_inv (σ : network) (η : network.graph) (e : graph.edge) :
+    ∀ n e o, (σ.propagate_edge n e : network).output o = (n : network).output o :=
     begin
       intro o,
       unfold propagate_edge,
       apply graph.update_input_out_inv
     end
 
-  lemma propagate_edge_comm (n : network) (e e' : graph.edge) (hₘ : e ∈ n) (hₘ' : e' ∈ n) : 
-    propagate_edge (propagate_edge n.η e) e' = propagate_edge (propagate_edge n.η e') e :=
-    begin
-      by_cases h : e = e',
-        rw h,
-        {
-          have hᵤ, from n.unique_ins,
-          rw graph.has_unique_port_ins at hᵤ,
-          replace h : e ≠ e' := by exact h,
-          have h_d : e.dst ≠ e'.dst, from hᵤ _ _ hₘ hₘ' h,
-          unfold propagate_edge,
-          conv_lhs { rw graph.update_input_out_inv },
-          conv_rhs { rw graph.update_input_out_inv },
-          rw graph.update_input_comm h_d _ _ n.η
-        }
-    end
-
-  private noncomputable def propagate_edges : network.graph → list graph.edge → network.graph
-    | η [] := η
-    | η (eₕ :: eₜ) := propagate_edges (propagate_edge η eₕ) eₜ
+  private noncomputable def propagate_edges : network → list graph.edge → network :=
+    list.foldl propagate_edge
 
   lemma propagate_edges_equiv (η : network.graph) (e : list network.graph.edge) :
     propagate_edges η e ≈ η :=
@@ -64,26 +69,8 @@ namespace network
   lemma propagate_edges_order_indep (η : network.graph) (e e' : list network.graph.edge) (hᵤ : η.has_unique_port_ins) (hₚ : e' ~ e) (hₘ : ∀ x ∈ e, x ∈ η) :
     propagate_edges η e = propagate_edges η e' :=
     begin
-      induction e with eₕ eₜ hᵢ generalizing e' η,
-        case list.nil { 
-          rw (list.perm.eq_nil hₚ)
-        },    
-        case list.cons {
-          unfold propagate_edges,
-          have hₙ : ∀ x, x ∈ eₜ → x ∈ η, { 
-            intros x hx, 
-            exact hₘ x (list.mem_cons_of_mem eₕ hx)
-          },
-          -- (e' - eₕ) is ~ to eₜ
-          have hₜ, from list.cons_perm_iff_perm_erase.mp (list.perm.symm hₚ),
-          have hᵤ' : (propagate_edge η eₕ).has_unique_port_ins,
-          from network.graph.edges_inv_unique_port_ins_inv (propagate_edge_equiv η eₕ).left hᵤ,
-          -- using hᵢ we get that propagate_edges n.η eₜ = propagate_edges n.η (e' - eₕ)
-          have hₜ_eq, from hᵢ (e'.erase eₕ) (propagate_edge η eₕ) hᵤ' (list.perm.symm hₜ.right) hₙ,
-          rw hₜ_eq,
-          -- Prove that ∀ x ∈ n, prop_edges (prop_edge η x) (l - x) = prop_edges η l
-          sorry
-        }
+      unfold propagate_edges,
+      rw list.perm.foldl_eq sorry hₚ η 
     end
 
   -- For all edges `e` with `e.src = p`, set `e.dst` to `v`.  
@@ -99,14 +86,14 @@ namespace network
     end
 
   -- For all edges `e` with `e.src ∈ p`, set `e.dst` to `rtr.output.nth e.src`.  
-  private noncomputable def propagate_ports : network.graph → list port.id → network.graph
-    | η [] := η 
-    | η (pₕ :: pₜ) := propagate_ports (propagate_port η pₕ) pₜ 
+  private noncomputable def propagate_ports : network.graph → list port.id → network.graph :=
+    list.foldl propagate_port
 
   lemma propagate_ports_order_indep (η : network.graph) (p p' : list port.id) (hᵤ : η.has_unique_port_ins) (hₚ : p' ~ p) :
     propagate_ports η p = propagate_ports η p' :=
     begin
-      sorry
+      unfold propagate_ports,
+      rw list.perm.foldl_eq' sorry hₚ η
     end
 
   lemma propagate_ports_equiv (η η' : network.graph) (p : list port.id) (h : η ≈ η') :
