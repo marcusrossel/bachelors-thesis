@@ -1,0 +1,616 @@
+\section{Lean Theorem Prover}
+\label{section:intro-lean}
+
+A stated goal of this thesis is to provide a well-defined formalization of the model presented above. 
+In this section we introduce the tool that will help us achieve this goal: \emph{Lean Theorem Prover}.
+
+\subsection{History of Proof Systems}
+\label{section:history-proof-sys}
+
+In modern pen-and-paper mathematics, there is a common way for how we ``do mathematics''.
+We don't construct an entire system of syntax and reasoning ourselves, but rather use predicate logic and the standard axioms declared by Zermelo-Fraenkel set theory.
+Thus, our basic premise is \emph{everything is a set}.
+When set theoretic foundations were first formulated by Georg Cantor and Gottlob Frege in the late 19th century, they contained paradoxes\footnote{The canonical example is Russel's paradox in Frege's \emph{Naive set theory}.}.
+As a result, the early 20th century saw a host of new ideas to solve these problems during the \emph{foundational crisis of mathematics}.
+Notably, Russel's and Whitehead's \emph{Principia Mathematica} attempted to solve the problems of previous theories by introducing a hierarchy of ``types'' \cite{principia}.
+Zermelo set theory\footnote{This later became Zermelo-Fraenkel set theory.} was being developed around the same time and has become the prevalent theory used today.
+This did not put an end to research on mathematical foundations though.
+In particular, the idea of types stuck around.
+In the 1940s it was incorporated into Church's \emph{Typed Lambda Calculus}\footnote{Cf. Section \ref{section:typed-lamda-calc}.} and in 1972 Per Martin-Löf published his \emph{Intuitionistic Type Theory} \cite{loef} as an alternative foundation of mathematics.
+Not least the conception of programming languages introduced new applications for types in the form of \emph{type systems}.
+Thus, types could be used to formalize mathematics \emph{and} help us communicate precisely with computers.
+It would thereby stand to reason that computers could help humans with mathematics.
+
+\paragraph{Computer Assisted Proofs:}
+
+Computers could help humans by their raw compute power in what is called a \emph{computer assisted proof}.
+For example, if a mathematical proof required checking a large (finite) number of cases, a computer could do that comparatively quickly.
+The canonical first example of using this approach was the proof of the Four Color Theorem in 1976.
+Arguably this type of computer assistance is the least helpful for coming up with new ideas, as the human already needs to know all the details of a proof.
+
+\paragraph{Proof Assistants:}
+
+A more potent means of computers assisting humans are \emph{proof assistants} or \emph{interactive theorem provers}.
+To use a proof assistant, the desired mathematical statements have to be written in a specific machine-parsable syntax.
+A statement can then be proven by specifying a sequence of axioms, substitutions, proven theorems, etc. 
+For example, the following pseudo-code could specify a proof of the statement $(1 + 2) + 3 = 2 + (1 + 3)$:
+
+\begin{lstlisting}
+  -- apply commutativity of addition to the first term on the 
+  -- left side of the equation
+  use(left, first) nat_add_comm 
+  
+  -- apply associativity of addition to the left side of the
+  -- equation
+  use(left) nat_add_assoc
+  
+  -- constuct a proof of the statement as a result of equality
+  -- being reflexive
+  cons eq_reflexive 
+\end{lstlisting}
+
+\noindent The proof assistant then fulfills two main functions:
+
+\begin{enumerate}
+  \item It checks whether the given sequence of expressions constitutes a valid proof of the desired statement.
+  \item It interactively visualizes the state of the current proof.
+  This includes showing which remaining sub-statements have to be proven to complete the proof, the assumptions that have been introduced so far, etc.
+\end{enumerate}
+
+\noindent Proof assistants still require humans to come up with the entire proof, but they provide certainty about the proof's correctness and aid the thought process.
+There are several notable examples of proof assistants, reaching as far back as the 1970s. 
+These days, typical examples are \emph{Agda}, \emph{Coq}, \emph{Idris} and \emph{Lean}.\footnote{All of these systems use the concept of \emph{dependent types} (cf. Section \ref{section:dependent-types}).}
+
+\paragraph{Automated Theorem Provers:}
+
+The next step in computers helping us create proofs would be for them to write the proofs themselves, i.e. perform \emph{automated} theorem proving.
+Currently, the term \emph{automated theorem prover} is used somewhat loosely to also describe proof assistants, as ``real'' automated theorem provers have not yet been developed.
+Fortunately, this ambiguity may be warranted as proof assistants are becoming smarter.
+
+Proving a theorem in a primitive proof assistant can be laborious, since every step of the proof has to be meticulously specified. 
+As proof assistants are becoming more sophisticated, humans are allowed to gloss over more trivial details.
+The proof sequence shown above is an example of a meticulously specified proof. 
+Modern proof assistants can handle all of this term rewriting themselves and could accept a statement like \lstinline{normalize} as a full proof.
+
+One of the specific goals of the proof assistant used in this thesis is to be even better at these kinds of tasks.
+Lean aims to bridge the gap between interactive and automated theorem proving.
+
+\break 
+
+\subsection{Lean's Foundations} 
+
+For this thesis we use Lean version 3.
+There are three aspects of Lean that are of interest to us. Namely, how to ...
+
+\begin{itemize}
+    \item Formalize mathematical objects
+    \item Formalize algorithms on those objects
+    \item Construct proofs about those objects and algorithms
+\end{itemize}
+
+\noindent All of these aspects are covered by only three fundamental notions:
+
+\begin{itemize}
+  \item $\Pi$-Types
+  \item Type Universes
+  \item Inductive Types
+\end{itemize}
+
+\noindent To see where these notions come from, we have to take a closer look at Lean's mathematical foundations: 
+the \emph{Calculus of Inductive Constructions} \cite{coc, coq}, or CIC for short.
+For the most part, Sections \ref{section:typed-lamda-calc} and \ref{section:dependent-types} are a summary of information presented in Mario Carneiro's MS Thesis presentation on the type theory of Lean \cite{mario}.
+
+\subsubsection{Typed Lambda Calculus} 
+\label{section:typed-lamda-calc}
+
+CIC is derived from \emph{Lambda Calculus}.
+We assume that readers of this paper have at least some familiarity with it and therefore only give an overview of its concepts here.
+
+\vspace{3mm}
+
+\noindent In lambda calculus a \emph{term} can be one of the following:
+
+\begin{itemize}
+  \item a variable: $x$
+  \item a lambda abstraction: $(\lambda x,t)$ --- where $x$ is a variable and $t$ is a term
+  \item an application: $(t\ s)$ --- where $t$ and $s$ are terms
+\end{itemize}
+
+\noindent A notion of computation is achieved by performing \emph{reductions} on terms --- most notably the \emph{$\beta$-reduction}.
+If we have a term $(\lambda x,t)s$ then the $\beta$-reduction allows us to rewrite it as $t[x/s]$ i.e. by replacing every occurrence of $x$ in $t$ with $s$.
+If repeated $\beta$-reduction yields a term that cannot be further reduced, it has reached \emph{$\beta$-normal form}.
+This normal form can serve as a notion of equality of terms.
+Importantly though, repeated $\beta$-reduction is not assured to terminate, and hence, a term may not have a $\beta$-normal form.\footnote{
+  For example, the \emph{Y-combinator}: $\lambda f,(\lambda x, f (x\ x)) (\lambda x, f (x\ x))$
+}
+
+\vspace{3mm}
+
+\noindent A \emph{Typed Lambda Calculus} extends the former with a notion of \emph{types}.
+We can simply declare an identifier, like $\iota$, to be a type --- called a \emph{base type}.
+Or, if $\sigma$ and $\tau$ are types, then we can construct a \emph{function type} $\sigma \to \tau$.
+From now on $\sigma$ and $\tau$ are used to denote arbitrary types, and if a term $t$ has type $\tau$, we write $t : \tau$.
+
+\vspace{3mm}
+
+\noindent The type judgement for terms follows three rules:
+
+\begin{itemize}
+  \item For each base type $\iota$, we can assign a set of variables to have type $\iota$.
+  \item If $t : \sigma \to \tau$ and $s : \sigma$, then $(t\ s) : \tau$.
+  \item If $t : \tau$, then $(\lambda x : \sigma, t) : \sigma \to \tau$.
+\end{itemize}
+
+\noindent As the last rule shows, we have extended the syntax of lambda abstraction to require that its variables declare a type (above: $x : \sigma$).
+This has strong implications on reductions and therefore computation.
+The $\beta$-reduction is now restricted, such that it can only be performed on a term $(t\ s)$, when $t : \sigma \to \tau$ and $s : \sigma$.
+The result is that \emph{every} term has a $\beta$-normal form --- or computationally speaking, every computation terminates.
+
+\vspace{3mm}
+
+\noindent The expressions used so far correspond closely to Lean's syntax.\footnote{
+  An easy way to try out these examples is to use Lean's web editor: \url{https://leanprover-community.github.io/lean-web-editor/}
+}
+Base types and unbound variables can be declared using the \verb|constant| keyword. 
+For example, we could declare that \lstinline{α} be a type and \lstinline{a} be an instance of that type:
+
+\begin{lstlisting}
+constant α : Type*
+constant a : α 
+\end{lstlisting}
+
+\noindent Declaring constants is equivalent to declaring axioms, so we won't ever use this feature outside these examples.
+Functions and applications can be written exactly as above:
+
+\begin{lstlisting}
+λ x : α, a -- function that maps every instance x of type α to a
+f s        -- application of some function f to some term s
+\end{lstlisting}
+
+\noindent To give names to such expressions we use the \verb|def| keyword:
+
+\begin{lstlisting}
+def my_func := λ x : α, a
+def my_val  := my_func a
+\end{lstlisting}
+
+\noindent As all terms are typed, so too are \lstinline{my_func} and \lstinline{my_val}.
+To check their types we can use the \verb|#check| directive:
+
+\begin{lstlisting}
+#check my_func -- prints "my_func : α → α"
+#check my_val  -- prints "my_val : α"
+\end{lstlisting}
+
+\subsubsection{Dependent Types}
+\label{section:dependent-types}
+
+\emph{Dependent Types} represent another extension on our current calculus.
+The goal when using dependent types is to extend the expressivity of functions.
+More specifically, given a function type $\sigma \to \tau$ we want to make it possible for the type $\tau$ to depend on the given \emph{term} of type $\sigma$.
+We call this a \emph{dependent function type}, or \emph{$\Pi$-type} and write $\Pi x : \sigma, \tau$ to denote the dependent function type from $\sigma$ to $\tau$ where $\tau$ can depend on $x$. 
+Using dependent functions changes the type judgement for lambda abstraction and application:
+
+\begin{itemize}
+  \item If $t : \tau$, then $(\lambda x : \sigma, t) : (\Pi x : \sigma, \tau)$.
+  \item If $t : (\Pi x : \sigma, \tau)$ and $s : \sigma$, then $(t\ s) : \tau[x / s]$ --- that is, the type $\tau$ can refer to the term $x$, which is replaced by $s$ upon application $(t\ s)$.
+\end{itemize}
+
+\noindent The syntax in Lean is again exactly the same:
+
+\begin{lstlisting}
+def my_dep_func : Π x : τ, σ x := λ ...
+\end{lstlisting}
+
+\noindent This definition declares \lstinline{my_dep_func} to be a dependent function from type \lstinline{τ} to type \lstinline{(σ x)}.
+The ellipses (\lstinline{...}) are not a part of Lean's syntax, but are used throughout this thesis to omit redundant code.
+
+As we have not introduced a way for types to refer to terms, i.e. we have no way of \emph{computing} a type from a term, $\Pi$-types do not add any functionality yet.
+We can fix this with the following adjustments.
+
+\paragraph{Types as Terms:}
+
+Our current calculus differentiates between \emph{terms} and \emph{types}, and defines functions to compute on terms.
+If we loosen the first restriction, and say that every type is a term, we gain the power of performing computations at the type-level.
+That is, we keep the current calculus, but allow a type to be used wherever we previously expected a term.
+For example, we can define the function $\lambda x : \sigma, \tau$ which for any input $x$ returns not a term of type $\tau$, but the type $\tau$ itself. 
+This begs the question: what is the type of this function?
+
+\paragraph{Universes:}
+
+Say we wanted to write a function that returns exactly the type that it received as input --- an identity function.
+Since we require a function's input to be typed, the application $(\lambda x : \sigma, x)\ \tau$ will never succeed.
+That is, we have no type $\sigma$ such that $\tau : \sigma$.
+To solve this, we need to introduce a type of types, which we call a \emph{universe} ($\mathcal{U}$).
+We can then define the identity function as $\lambda x : \mathcal{U}, x$.
+To avoid paradoxes that can arise by using just a single universe\footnote{For example, Girard's Paradox.}, we define a countable hierarchy of universes.
+We denote the lowest universe with $\mathcal{U}_0$ and define that for all universes $\mathcal{U}_n : \mathcal{U}_{n+1}$.
+Hence, $\mathcal{U}_n$ ``contains'' all types that live in universes $\mathcal{U}_{m}$ with $m < n$.
+We call these subscripts the \emph{universe level}.
+The universe at level $0$ has a special role, which will be covered in Section \ref{section:howard-curry}. 
+
+\vspace{3mm}
+
+\noindent In Lean, we can define the aforementioned identity function as:
+
+\begin{lstlisting}
+universe u
+def identity : Type u → Type u := λ x : Type u, x
+\end{lstlisting}
+
+\noindent That is, \verb|Type u| is the universe at universe level \lstinline{u}.
+Alternatively, we can make the universe declaration implicit and use a more common function syntax:
+
+\begin{lstlisting}
+def identity (x : Type*) : Type* → Type* := x
+\end{lstlisting}
+
+\noindent Or even drop the type annotation:
+
+\begin{lstlisting}
+def identity (x : Type*) := x
+\end{lstlisting}
+
+\paragraph{Definitional Equality:}
+
+A problem that arises with the ability to compute types is, what happens when two types look different but are actually the same.
+For example, suppose $\tau : \mathcal{U}_1$ and $id := (\lambda \sigma : \mathcal{U}_1, \sigma)$.
+Then, should $\tau$ and $(id\ \tau)$ be considered the same types?
+The answer given in dependent type theory is, yes --- we call them \emph{definitionally equal}. 
+The details of definitional equality are subject to a host of rules, but can loosely be summarized as:
+
+\begin{itemize}
+  \item Two types are definitionally equal if one is $\beta$-reducible to the other.
+  \item Definitional equality is an equivalence relation.
+\end{itemize}
+
+\subsubsection{Inductive Types}
+\label{section:inductive-types}
+
+The last concept required for CIC are \emph{inductive types}. 
+These types are rather complex to define mathematically \cite[p.~9]{mario}, so we introduce them only through Lean.
+
+The syntax we've introduced so far is great for creating \emph{functions}, i.e. descriptions of computations.
+The only mechanism we've seen for creating \emph{new types} was the axiomatic \verb|constant| declaration.
+The only other way of creating new types in Lean is as inductive types.
+
+\begin{quote}
+Intuitively, an inductive type is built up from a specified list of constructors. In Lean, the syntax for specifying such a type is as follows:
+
+\begin{lstlisting}
+  inductive foo : Type u
+    | constructor₁ : ... → foo
+    | constructor₂ : ... → foo
+    ...
+    | constructorₙ : ... → foo
+\end{lstlisting}
+
+The intuition is that each constructor specifies a way of building new objects of \lstinline{foo}, possibly from previously constructed values. 
+The type \lstinline{foo} consists of nothing more than the objects that are constructed in this way.\hfill\cite{leanbook}
+\end{quote}
+
+\paragraph{Constructors:}
+
+Inductive types are best understood by example, so let's first consider Lean's product and sum types \cite[p.~99]{leanbook}, \lstinline{prod} and \lstinline{sum}:
+
+\begin{lstlisting}
+inductive prod (α : Type*) (β : Type*)
+  | mk (fst : α) (snd : β) : prod
+  
+inductive sum (α : Type*) (β : Type*)
+  | inl (a : α) : sum
+  | inr (b : β) : sum
+
+#check prod -- "Type u_1 → Type u_2 → Type (max u_1 u_2)"
+#check sum  -- "Type u_1 → Type u_2 → Type (max u_1 u_2)"
+\end{lstlisting}
+
+\noindent The \lstinline{prod} type is a function from two types (\lstinline{α} and \lstinline{β}) to some new type: their product type. 
+The type defines exactly one way to create instances for it --- we say it has exactly one \emph{constructor}.
+The constructor \lstinline{mk} is a function that expects an instance of \lstinline{α} and \lstinline{β} and returns a corresponding instance of \lstinline{prod α β}.
+If, for example, we have two natural numbers \lstinline{x} and \lstinline{y}, we can create an instance of their product type (a tuple of $\mathbb{N} \times \mathbb{N}$):
+
+\begin{lstlisting}
+#check (prod.mk x y) -- "prod ℕ ℕ"
+\end{lstlisting}
+
+\noindent The \lstinline{sum} type on the other hand declares two constructors --- one that takes an \lstinline{α} and one that takes a \lstinline{β}.
+Thus, we have two ways to create an instance of \lstinline{sum α β}:
+
+\begin{lstlisting}
+#check n -- "ℕ"
+#check z -- "ℤ"
+
+#check (sum.inl n) -- "sum ℕ ?M_1"
+#check (sum.inr z) -- "sum ?M_1 ℤ"
+\end{lstlisting}
+
+\noindent The \lstinline{?M_1} means that Lean cannot infer what the given type parameter is. 
+We ignore this here.
+
+\paragraph{Recursors:}
+
+Bundling up data into new instances is of little use if we don't have a way to unpack those instances to access their data.
+This is what \emph{recursors} are for.
+For example, if we want to add the two components of an instance of $\mathbb{N} \times \mathbb{N}$, we first need to unpack the tuple and then add the respective values:
+
+\begin{lstlisting}
+def my_add (t : prod ℕ ℕ) : ℕ :=
+  prod.rec (λ n₁ n₂, n₁ + n₂) t
+\end{lstlisting}
+
+\noindent Lean automatically generates recursors for inductive types.
+The \lstinline{prod.rec} recursor is a function that expects two parameters. 
+First, a function from the values contained in an instance of the product type (\lstinline{n₁} and \lstinline{n₂}) to \emph{some} other value (\lstinline{n₁ + n₂}).
+Second, an instance of the product type (\lstinline{t}) upon which this function should be applied.
+The recursor of the \lstinline{sum} type differs from that of \lstinline{prod}, as \lstinline{sum} has multiple constructors:
+
+\begin{lstlisting}
+def negate_if_left (s : sum ℤ ℤ) : ℤ :=
+  sum.rec (λ l, -l) (λ r, r) s
+\end{lstlisting}
+
+\noindent The recursor \lstinline{sum.rec} expects \emph{two} functions as parameters --- one for each constructor of the sum type. 
+Hence, we can perform different functions based on which kind of instance of \lstinline{sum} we get. 
+This is akin to \verb|switch|-statements over enums in C-like programming languages.
+
+\break
+
+\paragraph{Recursive Types:}
+
+The \lstinline{prod} and \lstinline{sum} types don't show the full capabilities of inductive types.
+They are ``flat'', i.e. they only combine other types into new ones.
+The real power of inductive types becomes evident when we make them recursive.
+For example, consider the type of natural numbers \lstinline{nat}:
+
+\begin{lstlisting}
+inductive nat
+  | zero : nat
+  | succ (n : nat) : nat
+\end{lstlisting}
+
+\noindent This type shows two new kinds of constructors:
+
+\begin{itemize}
+  \item \lstinline{zero} is a constructor that doesn't expect any parameters.
+  Hence \lstinline{nat.zero} is a truly new value by its own right.
+  \item \lstinline{succ} is a \emph{recursive} constructor, i.e. it tells us how we can construct a new \lstinline{nat} from a given one.
+  In this example it tells us that for a given \lstinline{n : nat} we can create its successor \lstinline{nat.succ n}.
+\end{itemize}
+
+\noindent The result is that we get a formalization of the natural numbers that is analogous to that of the \emph{Peano axioms}.
+The combination of atomic and recursive constructors allows us to create an infinite number of new values --- in this case all natural numbers.
+
+\subsubsection{Curry-Howard Isomorphism}
+\label{section:howard-curry}
+
+The main motivator for using Lean in this thesis is as a tool for theorem proving.
+So far we have not discussed how to state a proposition or a proof.
+In this section we explore the unique properties of propositions in CIC and show how to express them in Lean.
+
+\vspace{3mm}
+
+\noindent In Section \ref{section:dependent-types} we referred to the ``special role'' of the universe at level $0$.
+This lowest universe is special in that it contains only propositions and all propositions.
+Thus, if we have a proposition $p$, we know $p : \mathcal{U}_0$ --- in Lean's syntax \verb|p : Prop|.
+This has an important implication: \emph{Propositions are types}.
+This property and especially its consequences (covered below) are known as the \emph{Curry-Howard Isomorphism}.
+The benefit of propositions being types is that it allows us to model proofs as instances of their respective propositions.
+Say we have the proposition $(p \wedge q) : \mathcal{U}_0$. 
+By the propositions-as-types paradigm, we prove this proposition by constructing an instance for it.
+And just as with other types we've seen so far, this can be done by using one of the type's constructors:
+
+\begin{lstlisting}
+#check p -- "p : Prop"
+#check q -- "q : Prop"
+#check pᵢ -- "pᵢ : p"
+#check qᵢ -- "qᵢ : q"
+  
+def my_proof : and p q := and.intro pᵢ qᵢ
+\end{lstlisting}
+
+\noindent Here \lstinline{p} and \lstinline{q} are propositions, and \lstinline{pᵢ} and \lstinline{qᵢ} are instances (proofs) of those propositions.
+To create a proof of \lstinline{and p q} we create an instance of this type using \lstinline{and}'s constructor \lstinline{intro}, which expects a proof of its respective sub-propositions. 
+Thus, in Lean, proofs can be used as data, just like numbers and lists.\footnote{
+  There is the caveat of proof irrelevance, as covered below.
+}
+Propositions are also defined like any other type:
+
+\begin{lstlisting}
+inductive and (a b : Prop) : Prop 
+  | intro (left : a) (right : b) : and
+
+inductive or (a b : Prop) : Prop
+  | inl (h : a) : or
+  | inr (h : b) : or  
+\end{lstlisting}
+
+\noindent In fact, if we compare these definitions with those of \lstinline{prod} and \lstinline{sum} we notice that they are almost exactly the same --- the only difference being that these propositions' parameters (\lstinline{a} and \lstinline{b}) are themselves propositions instead of \emph{any} type.
+This observation is one of the key aspects of the Curry-Howard isomorphism, as it allows us to draw the following correspondence:
+
+\begin{figure}[h]
+\begin{center}
+\begin{tabular}{ |c|c| }
+\hline
+Logic & Types \\
+\hline
+$\wedge$ & product type \\
+$\vee$ & sum type \\
+$\implies$ & function type \\
+$\forall$ & $\Pi$-type \\
+$\exists$ & $\Sigma$-type \\
+$\top$ & unit type \\
+$\bot$ & empty type \\
+\hline
+\end{tabular}
+\end{center}
+\vspace*{-3mm}
+\caption{Correspondences in the Curry-Howard isomorphism}
+\end{figure}
+
+\noindent A unit type is a type that has exactly one instance, whereas an empty type has no instances.
+A $\Sigma$-type is a dependent product type.
+These types are exactly how \lstinline{true}, \lstinline{false} and \lstinline{Exists} are implemented in Lean:
+
+\begin{lstlisting}
+inductive true : Prop
+  | intro : true
+  
+inductive false : Prop
+
+inductive Exists {α : Type*} (p : α → Prop) : Prop
+  | intro (w : α) (h : p w) : Exists
+\end{lstlisting}
+
+\noindent We won't review the other correspondences here, as they should become evident during the course of this thesis.
+
+\vspace*{-2mm}
+
+\paragraph{Proof Irrelevance:}
+
+Another unique aspect of propositions in CIC is their \emph{proof irrelevance} \cite[pp.~6-7]{mario}:
+All proofs of a proposition, and therefore all instances of it, are considered equal.
+This is achieved by defining any two instances of the same proposition to be definitionally equal.
+As a result, we can never depend on the specific objects used to construct a proof, but rather use the proof as a certificate.
+
+For example, we can prove the proposition \lstinline{(∃ n : ℕ, n = n)}, by providing the instance \lstinline{Exists.intro 5 (refl 5)}, where \lstinline{refl 5} is a proof that \lstinline{5 = 5}.
+If we use an instance of this proposition though (say, in a proof), we cannot rely on \lstinline{n} being \lstinline{5}, since we might as well have received a definitionally equal proof: \lstinline{Exists.intro 4 (refl 4)}.
+
+\subsection{Dependent Type Hell}
+\label{section:hell}
+
+Now that we've covered the formal aspects of Lean, we also need to consider an informal yet important facet of Lean called \emph{Dependent Type Hell}.
+As Kevin Buzzard\footnote{Active member of the Lean community and professor of pure mathematics at Imperial College London.} puts it:
+
+\begin{quote}
+It seems that in dependent type theory one has [to] think about [formalization] in a certain kind of way in order to avoid pain.\hfill \cite{pain}
+\end{quote}
+
+\noindent To demonstrate what exactly is meant by ``pain'' in this context, we show an example of dependent type hell and how to circumvent it.
+For this purpose, we formalize one of the basic objects required for the Simple Reactor model: a digraph.
+We place two requirements on our formalization, which are not present in conventional digraphs:
+
+\begin{itemize}
+  \item It should be possible for the same vertex value to occur multiple times in the graph. 
+  For example, if our digraph connects elements of $\mathbb{N}$ it should be possible for $45$ to occur multiple times.
+  We achieve this by using \emph{identifiers} as vertices and define a mapping from IDs to values.
+  \item Aside from being directed, edges should also be able to carry arbitrary data.
+  For example, if we form a graph of reactors, it should be possible for the edges to specify which ports they connect.
+  We achieve this by making digraphs dependent on an (almost) arbitrary edge type.
+\end{itemize}
+
+\noindent Thus, we will not formalize a simple digraph, but rather a labeled multidigraph, which we here call ``L-graph''.
+We use this opportunity to introduce more of Lean's concepts and syntax:
+
+\begin{lstlisting}
+structure lgraph (ι δ ε : Type*) :=
+  (ids : finset ι)
+  (data : ι → δ)
+  (edges : finset ε)
+\end{lstlisting}
+
+\noindent The \verb|structure| keyword can be used when defining an inductive type with a single constructor, so that \lstinline{ids}, \lstinline{data} and \lstinline{edges} can be thought of as the ``fields''.
+The \lstinline{finset} type represents finite sets over a given type.
+The parameters \lstinline{ι}, \lstinline{δ}, \lstinline{ε} are the L-graph's generic ID, data, and edge types.
+This definition of \lstinline{lgraph} is not complete in that the edge type \lstinline{ε} is completely unrestrained.
+A \emph{directed} edge should have a concept of \emph{source} and \emph{destination}.
+
+\paragraph{Type Classes:}
+
+To enforce this restriction, we use \emph{type classes} --- a concept first introduced in the Haskell programming language.
+Type classes are a concept akin to what is known as interfaces, traits or protocols in mainstream programming languages --- though the analogy breaks quickly:
+
+\begin{lstlisting}
+class edge (ε ι : Type*) :=
+  (src : ε → ι)
+  (dst : ε → ι)
+\end{lstlisting}
+
+\noindent Type classes are declared with the \verb|class| keyword, which is syntactic sugar for an inductive type declaration with a certain attribute.
+A type can become part of a type class, by providing an instance for it.
+For the sake of brevity, we won't explain instances further.
+
+Thus, for any type \lstinline{ε} to conform to the type class \lstinline{edge}, it needs to provide a corresponding instance, which allows us to extract a source (\lstinline{src}) and destination (\lstinline{dst}).
+We can force our L-graph's edge type \lstinline{ε} into conforming to \lstinline{edge} with the following notation:
+
+\begin{lstlisting}
+structure lgraph (ι δ ε : Type*) [edge ε ι] := ...
+\end{lstlisting}
+
+\paragraph{Going to Hell:}
+
+To demonstrate dependent type hell, we review an extended version of \lstinline{lgraph}.
+The aim of this extension is to constrain \lstinline{lgraph}, such that:
+
+\begin{enumerate}
+  \item The \lstinline{data} map does not have to define corresponding data for \emph{all} possible IDs (instances of \lstinline{ι}), but only those which are part of the graph (\lstinline{∈ ids}).
+  \item The edge type \lstinline{ε} should be able to depend on the graph's \lstinline{ids} and \lstinline{data}.
+  This information \emph{could} be required by the edge type to make sure that no invalid edges can be constructed.
+\end{enumerate}
+
+\noindent We can achieve the first goal by restricting the domain of the \lstinline{data} map using a \emph{subtype}.
+A subtype is a mechanism for restricting a given type, such that all of its instances have to satisfy a given predicate.\footnote{
+  This is similar to the principle of restricted comprehension in set theory.
+} 
+The subtype of all \lstinline{ι} that are an element of \lstinline{ids} can be written as \lstinline|{i : ι // i ∈ ids}|.
+
+The second goal can be realized by extending the type of edges \lstinline{ε}.
+Thus, \lstinline{ε} should not be a \verb|Type*|, but rather a dependent function (Line 2) that computes the edge type as a function of a set of IDs and a map of IDs to data.
+An L-graph's \lstinline{edges} (Line 8) are then a set over the edge type that we get by passing the graph's own \lstinline{ids} and \lstinline{data} to the edge type function.
+That is, \lstinline{(ε ids data)} is the type of edges in an L-graph.
+
+The \verb|variable(s)| keyword allows us to factor out the parameters of a type. 
+Thus, \lstinline{ι}, \lstinline{δ}, \lstinline{ε} and the type class constraint are still all part of \lstinline{lgraph}'s definition:
+
+\lstset{numbers=left, xleftmargin=1.5em}
+\begin{lstlisting}
+variables ι δ : Type*
+variable ε : Π ids : finset ι, ({i // i ∈ ids} → δ) → Type*
+variable [Π i d, edge (ε i d) ι]
+
+structure lgraph :=
+  (ids : finset ι)
+  (data : {i // i ∈ ids} → δ)
+  (edges : finset (ε ids data))
+\end{lstlisting}
+\lstset{numbers=none, xleftmargin=0em}
+
+\noindent While these constraints on L-graph aren't problematic themselves, they create problems when working with L-graphs.
+As an example, consider what happens when we try to remove a vertex from the graph:
+
+\begin{enumerate}
+  \item We remove the corresponding ID from the graph's \lstinline{ids}.
+  \item Since the \lstinline{ids} have changed, the \emph{type} \verb|{i // i ∈ ids}| has also changed. 
+  Hence, we need to construct a new \lstinline{data} map to match the new type.
+  \item Since the \lstinline{ids} and \lstinline{data} have changed, the \emph{type} \lstinline{(ε ids data)} has also changed.
+  Rectifying this issue is non-trivial, since it means that we have to type-cast every edge in \lstinline{edges} to the new edge-type.
+\end{enumerate}
+
+\noindent Thus, not only is it non-trivial to perform a relatively simple operation, it also changes the \emph{type} of the resulting L-graph's edges.
+This is a strong indicator that we have entered dependent type hell.
+
+\paragraph{Escaping Hell:}
+
+We've explained previously that in Lean, proofs can be used as first-class data.
+One of the applications of this is to ensure properties about values ad hoc.
+For example, if we have some instance \lstinline{n : ℕ}, and also have a proof that \lstinline{n = 0 * n}, then we've obtained a constraint on \lstinline{n} without requiring the type of \lstinline{n} to be constrained (for example, as \lstinline|{n : ℕ // n = 0 * n}|).
+Thus, we can navigate our way out of dependent type hell, by adding the following field to our original definition of L-graphs:
+
+\begin{lstlisting}
+structure lgraph (ι δ ε : Type*) [edge ε ι] := 
+  ...
+  (well_formed: 
+    ∀ e ∈ edges, (edge.src e) ∈ ids ∧ (edge.dst e) ∈ ids)
+\end{lstlisting}
+
+\noindent The type of \lstinline{well_formed} is the proposition that all edges have a source and destination that belongs to the set of \lstinline{ids}.
+Adding this field implies that any instance of an L-graph must come with an instance of this proposition, and hence a proof that its edges are formed over its IDs. 
+Hence, it is only ever possible to instantiate ``valid'' L-graphs --- all without constraining its edge type.
+
+\vspace{5mm}
+\hrule
+\vspace{5mm}
+
+\noindent This section has shown how Lean and the underlying Calculus of Inductive Constructions provide powerful mathematical foundations, which allow us to formalize mathematical objects, functions on those objects, and construct proofs about those objects and functions.
+Thus, in the following sections we will use the basic notions of universes, $\Pi$-types and inductive types to formalize the Simple Reactor model.
+Yet, as we have just seen, we need to be careful in how we wield these tools.

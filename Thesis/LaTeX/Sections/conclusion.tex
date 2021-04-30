@@ -1,0 +1,90 @@
+\section{Conclusion}
+\label{section:conclusion}
+
+The formalization of the Simple Reactor model as shown in this thesis represents a first step towards a rigorous formalization of the Reactor model.
+It allowed us to explore the notions required to express the most primitive aspects of the Reactor model.
+Sticking to a small model enabled us to incrementally build up a repertoire of lemmas and theorems, which finally lead to a rigorous proof of the model's determinism.
+Additionally, the separation of the instantaneous and time-based aspects, allowed us to formalize the latter as a generalization of the former.
+In all of this, the correctness enforced by Lean played an integral role in avoiding mathematical inaccuracies contained in the full Reactor model.
+It also helped us surface some of the assumptions required for determinism --- namely the existence of a precedence and topological-ordering function.
+
+\subsection{Working with Lean}
+
+While Lean has been of great utility for this project, it is a double-edged sword.
+
+\paragraph{Upsides:}
+
+The upsides of using Lean as a proof assistant are very compelling.
+It provides (almost) absolute certainty about the correctness of mathematical work, which greatly reduces the effort required to review theorems and their proofs.
+For this thesis, we wrote over 2000 lines of Lean code, including over 130 theorems and lemmas, which for the most part can be ignored without further consideration, thanks to Lean.\footnote{
+    It is of course still necessary to check that the theorems state the desired propositions.
+}
+
+Further, the certainty provided by Lean can benefit the \emph{user} of the system.
+It forces amateur or non-mathematicians into being mathematically correct, which is particularly useful for learning how to create correct proofs.
+
+\begin{quote}
+I don’t think I \emph{really} got [proofs] until encountering the Lean theorem prover [...].
+With Lean you have your hypotheses, you have your proof goal (the thing you’re trying to prove), and you have a set of moves you can make. 
+It’s very much like a game [...].
+Before I learned Lean, writing proofs was like playing chess without knowing that bishops existed or how knights moved and thinking pawns could teleport around the board. 
+Just knowing the rules, knowing what constitutes a valid move and knowing the space (or at least more of the space) of valid moves, was so powerful for my understanding of how to write a proof. 
+Writing proofs became like navigating an endlessly fascinating maze, using theorems to hop from place to place until finding the conclusion!\hfill \cite{homework}
+\end{quote}
+
+\noindent Hence, as a non-mathematician it is possible to start proving a theorem without a solid grasp on the steps involved, and stumble upon them along the way.
+
+Lastly, formalization in Lean may have even bigger benefits with the advancement of AI.
+As formalizations in Lean are growing into an ever larger corpus \cite{stats}, it is becoming more plausible to train software to generate proofs in Lean.
+At \emph{Lean Together 2021}, Jason Rute and Jesse Han presented an implementation of a proof tactic based on machine learning\footnote{\emph{LeanStep} at \url{https://leanprover-community.github.io/lt2021/schedule.html}}, with remarkable results.
+Efforts like this advance Lean into becoming more of an automated theorem prover than a mere proof assistant.\footnote{Cf. Section \ref{section:history-proof-sys}.}
+
+\paragraph{Downsides:}
+
+The mathematical precision required by Lean can also be one of its worst aspects.
+For example, we had to define (labeled multi-)digraphs and some of their properties ourselves, even though they are of virtually no interest to our model.
+In traditional mathematics we would generally gloss over such an object, and take its lemmas for granted.
+Additionally, for Lean ...
+
+\begin{quote}
+[t]he learning curve is steep. 
+It is \emph{very hard} to learn to use Lean proficiently. [...]
+Are you a student at Imperial being guided by Kevin Buzzard?
+If not, Lean might not be for you.\hfill \cite{hales}
+\end{quote}
+
+\noindent While the gamified proof process is certainly useful for proving simple theorems, it can get in the way when trying to prove larger ones.
+As every detail needs to be correct, it can be easy to lose the overarching argument of a proof to technicalities.
+Hence, even if you have a proof idea, you may not be able to easily state it in Lean.
+And once you do manage to start proving a theorem, there are many roadblocks that can stop you dead in your tracks.
+
+\paragraph{Community:}
+
+When getting stuck, the only remedy is usually to turn to the Lean community.
+Fortunately, Lean has a very active community with constant discourse on a public forum.\footnote{
+    \url{https://leanprover.zulipchat.com}
+}
+It is hard to express the value it provides.
+Aside from constant helpful answers to even the most niche problems, the community actively develops and maintains the \emph{Mathlib} library.
+Mathlib is an ever-growing, coordinated effort to collect formalizations of ``mainstream'' mathematics in a central library.
+In fact, many of the lemmas and structures used in this thesis are actually part of Mathlib, rather than Lean itself.
+
+\subsection{Future Directions}
+\label{section:future}
+
+As this thesis explicitly models a subset of the full Reactor model, there are a variety of next steps that can be taken.
+Most pressing is probably the formalization of non-terminating execution as described in Section \ref{section:recursion}.
+A possible approach for this is to formalize the execution model of timed reactors non-constructively, i.e. by propositions, like \lstinline{prec_func} and \lstinline{topo_func}.
+This approach would also make the formalization of the execution model more descriptive. \footnote{Cf. Section \ref{section:classical-vs-constructive}.}
+Formalizing a function in this manner could be done by returning a (potentially infinite) sequence\footnote{\url{https://leanprover-community.github.io/mathlib_docs/data/seq/seq.html#seq}} of instantaneous networks \cite{flow}, such that adjacent elements in the sequence must be valid predecessors/successors according to the execution model. 
+Determinism could be proven by building upon the determinism of instantaneous networks. 
+
+Another desirable addition would be the introduction of physical time. 
+As one of the key aspects of the Reactor model are distinct notions of time, key insights into the model are only possible once time is fully formalized.
+
+To flesh out the model, mutations and nested reactors could be added.
+Since we've already defined a notion of reactor networks, the addition of nested reactors should be unintrusive.
+Mutations might require some larger adjustments, as they constitute an additional step in the execution model and therefore have a larger impact on the proof of determinism. 
+
+Not least, it might be valuable to prove the existence of a \lstinline{prec_func} and \lstinline{topo_func} by providing explicit algorithms for them in Lean.
+Thus, both of the assumptions upon with determinism of instantaneous reactor networks currently rests, would be proven.

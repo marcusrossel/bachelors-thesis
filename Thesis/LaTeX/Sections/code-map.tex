@@ -1,0 +1,46 @@
+\section{Project Overview}
+
+The code shown in this thesis is only a tiny excerpt of the current formalization of the Simple Reactor model.
+This section aims to provide a high-level overview of the project structure, so that it may be more easily navigated.
+Generally, definitions and corresponding lemmas/theorems are placed in the same file, with the theorems appearing immediately after the definition.
+
+\vspace{3mm}
+
+\noindent The root folder contains formalizations, which are not specific to reactors:
+\begin{itemize}
+    \item \verb|lgraph.lean| defines L-graphs, including the definitions of paths and acyclicity.
+    \item \verb|topo.lean| defines (complete) topological orderings, and proves important lemmas about them.
+    \item \verb|mathlib.lean| contains lemmas about structures from Mathlib, which are not (yet) part of Mathlib.
+    These lemmas were all proven by Yakov Pechersky.
+\end{itemize}
+
+\noindent The \verb|timed| folder contains definitions about timed reactor networks.
+\begin{itemize}
+    \item \verb|basic.lean| defines tags, TPAs, and timed networks.
+    \item \verb|exec.lean| defines the timed execution model, i.e. \lstinline{run_next} and all of its steps.
+\end{itemize}
+
+\noindent The \verb|inst| folder contains definitions about instantaneous reactors.
+\begin{itemize}
+    \item \verb|primitives.lean| defines state variables, ports, and many other definitions/lemmas about ports which were not discussed in this thesis, such as \emph{port-roles} and \emph{inhabited indices}.
+    \item \verb|reaction.lean| defines reactions and their triggering condition.
+    \item \verb|reactor.lean| defines reactors, operations for mutating them, a procedure for executing a reaction in them, reactor equivalence, and \emph{relative equality} (another concept omitted in this thesis).
+\end{itemize}
+
+\noindent The \verb|inst/network| folder defines notions about instantaneous reactor \emph{networks}.
+
+\begin{itemize}
+    \item \verb|ids.lean| defines reactor-, reaction- and port-IDs.
+    \item \verb|graph.lean| defines instantaneous reactor network graphs, operations for mutating them, a procedure for executing a reaction locally (without output propagation), and network graph equivalence.
+    \item \verb|basic.lean| expands on \verb|graph.lean| by defining full instantaneous networks, as well as lifting some notions from network graphs to networks.
+    \item \verb|prec.lean| defines precedence graphs, their property of well-formedness, the network property \lstinline{is_prec_acyclic}, and proves the equality of well-formed precedence graphs.
+\end{itemize}
+
+\noindent The \verb|inst/exec| folder defines the execution model for instantaneous networks.
+
+\begin{itemize}
+    \item \verb|run.lean| defines the \lstinline{run} function, as well as the proof of determinism.
+    \item \verb|topo.lean| defines \lstinline{run_topo} and \lstinline{run_reaction}, as well as the corresponding proofs \lstinline{run_topo_comm}, \lstinline{run_topo_swap} and \lstinline{run_reaction_comm}.
+    \item \verb|propagate.lean| defines all of the propagation functions.
+    \item \verb|algorithms.lean| defines the ``implicit'' algorithms, i.e. \lstinline{prec_func} and \lstinline{topo_func}, as well as the proof that all \lstinline{prec_func}s are equal.
+\end{itemize}

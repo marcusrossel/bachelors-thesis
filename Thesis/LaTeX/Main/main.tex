@@ -1,0 +1,124 @@
+\documentclass{article}
+
+\usepackage{graphicx}
+\usepackage[square,numbers]{natbib}
+\renewcommand{\bibname}{References}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{bigfoot}
+\usepackage{pdfpages}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks,
+    linkcolor={black},
+    citecolor={blue!35!black},
+    urlcolor={blue!35!black}
+}
+
+\usepackage[bottom]{footmisc}
+\usepackage[nottoc]{tocbibind}
+\usepackage{amsmath}
+\usepackage[utf8x]{inputenc}
+\usepackage{amssymb, upgreek}
+\usepackage[toc,page]{appendix}
+
+\usepackage{color}
+\definecolor{keywordcolor}{rgb}{0.7, 0.1, 0.1}   % red
+\definecolor{commentcolor}{rgb}{0.4, 0.4, 0.4}   % grey
+\definecolor{symbolcolor}{rgb}{0.0, 0.1, 0.6}    % blue
+\definecolor{sortcolor}{rgb}{0.1, 0.5, 0.1}      % green
+\definecolor{errorcolor}{rgb}{1, 0, 0}           % bright red
+\definecolor{stringcolor}{rgb}{0.5, 0.3, 0.2}    % brown
+
+\usepackage{listings}
+\def\lstlanguagefiles{lstlean}
+\lstset{language=lean}
+
+\bibliographystyle{unsrt}
+
+\graphicspath{{../Images/}}
+
+\title{Provable Determinism in Reactors}
+\author{Marcus Rossel\\\small Supervised by Andrés Goens}
+
+\begin{document}
+\pagenumbering{gobble}
+
+\maketitle
+
+\vspace{10mm}
+
+\begin{center}
+\large Bachelor Thesis at Technical University Dresden
+
+\vspace{1mm}
+
+\textbf{Chair for Compiler Construction}
+
+\vspace{4mm}
+
+\normalsize Matriculation Number: 4744651
+\end{center}
+
+\includepdf[pages=-]{../task.pdf}
+
+\newpage
+
+\section*{Declaration}
+
+I declare that I have prepared this thesis independently and that I used only the references and auxiliary means indicated in the thesis.
+
+\vspace{15mm}
+
+\noindent Marcus Rossel
+
+\vspace{1mm}
+
+\noindent Dresden --- \today
+
+\newpage
+\input{../Sections/abstract.tex}
+
+\newpage
+
+\small
+\tableofcontents
+\normalsize
+
+\newpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{../Sections/intro-reactors}
+\newpage
+\input{../Sections/intro-lean}
+\newpage
+\input{../Sections/formal-inst-reactors}
+\newpage
+\input{../Sections/determinism}
+\newpage
+\input{../Sections/time}
+\newpage
+\input{../Sections/conclusion}
+
+\newpage
+
+\appendix
+\input{../Sections/code-map}
+
+\newpage
+
+\bibliography{main}
+
+\newpage
+\pagenumbering{gobble}
+
+\section*{Acknowledgements}
+
+This thesis has grown to become a bigger beast than I would have expected.
+I would like to thank my advisor Andrés for suggesting such a great topic, providing me with challenging yet helpful material when necessary, and especially for helping me avoid (or sometimes climb out of) the pits of misdirected effort.
+
+\noindent Though not officially, there has definitely been a second advisor to this thesis: the Lean community.
+For helping me work through countless roadblocks I would especially like to thank Adam Topaz, Alex J. Best, Bryan Gin-ge Chen, Eric Wieser, Flooris van Doorn, Johan Commelin, Kevin Buzzard, Mario Carneiro, Patrick Massot, Reid Barton, Rob Lewis, and Yakov Perchersky.
+
+\end{document}

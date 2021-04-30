@@ -1,0 +1,357 @@
+\section{Proving Determinism}
+\label{section:determinism}
+
+In Section \ref{section:intro-reactors} we introduced \emph{determinism} as the property of a system, which states that equal inputs lead to equal behavior.
+With respect to the \lstinline{run} function, this means that we expect equal inputs to produce equal outputs.
+As \lstinline{run} is a function in the mathematical sense, this property is trivially fulfilled.
+In this section we prove a stronger result.
+Determinism, as used here, means that for a given instantaneous reactor network, the \lstinline{run} function produces the same output, \emph{regardless of the given} \lstinline{prec_func} \emph{and} \lstinline{topo_func}:
+
+\begin{lstlisting}
+theorem determinism 
+  (σ : inst.network υ) (p p' : prec_func υ) (t t' : topo_func υ) : 
+    σ.run p t = σ.run p' t' := ...
+\end{lstlisting}
+
+\subsection{Lean's Proof Syntax}
+
+The syntax used to state the theorem above, while new, should look familiar.
+In Lean, proofs of theorems and lemmas are defined using the \verb|theorem| and \verb|lemma| keywords.
+Their types are propositions, that is, types from \emph{within} \verb|Prop|.
+As logical implication corresponds to function types in the Curry-Howard isomorphism, theorems can still take parameters just like functions.
+This extends to \emph{dependent} functions by the correspondence between $\Pi$-types and $\forall$.
+For example, the type of the theorem \lstinline{determinism} is:
+
+\begin{lstlisting}
+∀ (σ : network υ) (p p' : prec_func υ) (t t' : topo_func υ), 
+  σ.run p t = σ.run p' t'
+\end{lstlisting}
+
+\noindent To prove \lstinline{determinism}, we need to provide an instance of this type.
+One way of going about this is to manually construct such an instance, by composing instances of the respective logical connectives.
+For example: \footnote{For the definition of \lstinline{and}, cf. Section \ref{section:howard-curry}.}
+
+\begin{lstlisting}
+lemma and_add_q (h : p ∧ q) : q ∧ p ∧ q :=
+  and.intro h.right (and.intro h.left h.right)
+\end{lstlisting}
+
+\noindent While this approach works great for small proofs, it can become hard to manage for larger ones, as it does align with a human way of thinking about proofs: as a sequence of steps towards a proof goal.
+This is why Lean provides a more human-friendly way of constructing proofs, called \emph{tactics}.
+
+\subsubsection{Tactics}
+
+\begin{quote}
+[T]actics are commands, or instructions, that describe how to build [...] a proof. 
+Informally, we might begin a mathematical proof by saying ``to prove the forward direction, unfold the definition, apply the previous lemma, and simplify.'' 
+Just as these are instructions that tell the reader how to find the relevant proof, tactics are instructions that tell Lean how to construct a proof term.\hfill \cite{leanbook}
+\end{quote}
+    
+\noindent Therefore, while a proof still has to be a concrete instance of a proposition, we don't have to build this instance ourselves.
+In this section we briefly introduce Lean's tactic mode by proving a lemma about reactors:
+
+\lstset{numbers=left, xleftmargin=1.5em}
+\begin{lstlisting}
+lemma run_eq_input (rtr : reactor υ) (rcn : ℕ) : 
+  (rtr.run rcn).input = rtr.input := ...
+
+def reactor.run (rtr : reactor υ) (rcn : ℕ) : reactor υ :=
+  if (rtr.reactions rcn).triggers_on rtr.input 
+  then rtr.merge 
+    ((rtr.reactions rcn).body rtr.input rtr.state)
+  else rtr
+\end{lstlisting}
+
+\noindent The \lstinline{reactor.run} function defines how to run a reaction locally within a reactor.
+For this, we first check whether the reactor's input ports cause the reaction to trigger (Line 5).
+If so, we run the reaction's body on the reactor's input and state (Line 7) and merge the result back into the reactor (Line 6).
+The \lstinline{merge} function integrates the output of the reaction's body into the reactor by, first, overriding the reactor's state with the new state and, second, overriding exactly those output ports for which the reaction produced a non-absent value.
+If the reaction does not trigger, we simply return the reactor as is (Line 8).
+
+The lemma \lstinline{run_eq_input} states that running a reaction does not change the reactor's input ports.
+Intuitively, this lemma should hold, as running a reaction only changes output ports and state variables. 
+We can rigorously prove this, with the following steps:
+
+\begin{lstlisting}
+lemma run_eq_input (rtr : reactor υ) (rcn : ℕ) : 
+  (rtr.run rcn).input = rtr.input :=
+  begin
+    unfold reactor.run, 
+    split_ifs,
+      { unfold reactor.merge },
+      { refl }
+  end
+\end{lstlisting}
+\lstset{numbers=none, xleftmargin=0em}
+
+\noindent We enter tactic mode with \verb|begin| and leave it with \verb|end|.
+All of the statements between these delimiters will tell Lean how to construct the proof term for this lemma.
+Using tactic mode allows us to reap the benefits of interactive proof assistants as described in Section \ref{section:history-proof-sys}.
+That is, we get an overview of the \emph{tactic state}, which on Line 4 looks as follows:
+
+\begin{lstlisting}
+rtr : reactor υ
+rcn : ℕ
+⊢ (rtr.run rcn).input = rtr.input
+\end{lstlisting}
+
+\noindent The first two lines show our current assumptions: 
+We have instances \lstinline{rtr : reactor υ} and \lstinline{rcn : ℕ}.
+The term after the symbol \lstinline{⊢} is the current \emph{goal}, i.e. the remaining subproof that needs to be shown to complete the proof of the entire lemma.
+Our aim is to transform the goal in such a way that we can then prove it by using existing axioms and theorems.
+In the example above, we start by unfolding a definition: \lstinline{unfold reactor.run}.
+On Line 5 our goal state therefore changes to:
+
+\begin{lstlisting}
+rtr : reactor υ
+rcn : ℕ
+⊢ (ite ((rtr.reactions rcn).triggers_on rtr.input) (rtr.merge (⇑(rtr.reactions rcn) rtr.input rtr.state)) rtr).input = rtr.input
+\end{lstlisting}
+
+\noindent It is not uncommon to have goals that are hard to parse when unfolding functions.
+The problem here is that we have a large if-then-else expression (\lstinline{ite}) in the goal.
+To simplify our goal, we can split it into two cases: one where the \lstinline{ite} resolves to the positive case and one where it resolves to the negative case.
+We do this by using the \lstinline{split_ifs} tactic. 
+The result is that we have two distinct goals:
+
+\begin{lstlisting}
+rtr : reactor υ
+rcn : ℕ
+h : (rtr.reactions rcn).triggers_on rtr.input
+⊢ (rtr.merge (⇑(rtr.reactions rcn) rtr.input rtr.state)).input = rtr.input
+
+rtr : reactor υ
+rcn : ℕ
+h : ¬(rtr.reactions rcn).triggers_on rtr.input
+⊢ rtr.input = rtr.input
+\end{lstlisting}
+
+\noindent For the first goal, it suffices to unfold the definition of \lstinline{merge} (Line 6) for Lean to be able to prove that this goal is true.
+The second goal can be proven by the reflexivity of equality.
+Hence, we use the \lstinline{refl} tactic to close this goal (Line 7).
+Thus, all goals have been closed, and we have proven the lemma.
+
+There are a variety of other tactics that allow us to change our goal, introduce new assumptions, split our goal into multiple subgoals, apply tactics repeatedly, etc.\footnote{
+  Cf. \url{https://leanprover.github.io/reference/tactics.html}
+}
+As this thesis shows virtually no proof code, we will refrain from showing them here.
+We instead focus on showing the \emph{claims} made by lemmas and theorems, as well as how they compose.
+The reason we can afford to ignore the proofs themselves is that their correctness is already checked by Lean.
+
+The following proof of \lstinline{determinism} consists of two parts. 
+We first show that the choice of \lstinline{prec_func} does not affect the \lstinline{run} function, as there exists at most one \lstinline{prec_func}.
+Secondly, we prove that \lstinline{run} behaves the same, independently of the reaction queue generated by \lstinline{topo_func}.
+Hence, the choice of \lstinline{topo_func} does not affect the output of \lstinline{run}.
+
+\break
+
+\subsection{Equality of Precedence Graphs}
+\label{section:unique-prec-graph}
+
+The first step in proving \lstinline{determinism} is to show that all precedence functions are equal, i.e. there exists at most one unique precedence function:
+
+\lstset{numbers=left, xleftmargin=1.5em}
+\begin{lstlisting}
+theorem prec_func.unique (p p' : prec_func υ) : p = p' :=
+  begin
+    rewrite prec_func.ext p p',
+    funext σ,
+    exact prec.wf_prec_graphs_are_eq 
+      (p.well_formed σ) (p'.well_formed σ)
+  end
+\end{lstlisting}
+\lstset{numbers=none, xleftmargin=0em}
+
+\noindent The main step for proving this theorem is to show that all well-formed precedence graphs over a fixed network are equal (used in Line 5):
+
+\begin{lstlisting}
+theorem prec.wf_prec_graphs_are_eq 
+  {η : inst.network.graph υ} {ρ ρ' : prec.graph υ} 
+  (hw : ρ ⋈ η) (hw' : ρ' ⋈ η) :
+  ρ = ρ' := ...
+\end{lstlisting}
+
+\noindent This theorem can be proven relatively directly from the properties of well-formedness of precedence graphs.
+Using this result we can begin our proof of \lstinline{determinism}:
+
+\begin{lstlisting}
+theorem determinism ... : σ.run p t = σ.run p' t' := 
+  begin
+    rewrite prec_func.unique p' p,
+    ...
+\end{lstlisting}
+
+\noindent This leaves us with the goal: \lstinline{⊢ σ.run p t = σ.run p t'}.
+
+\subsection{Reactor Equivalence}
+\label{section:equiv}
+
+Despite omitting many details, we will cover one concept that has been of great utility in proving properties about reactor networks.
+Many of the properties of reactor networks are a result of their \emph{structure}, rather than the specific data they hold at any given time.
+It is therefore useful to have a way of expressing that two networks are equal in structure, while ignoring the data they contain.
+We call such networks \emph{equivalent}.
+The notion of equivalence starts at the level of reactors:
+
+\begin{lstlisting}
+instance equiv : has_equiv (reactor υ) := 
+⟨λ r r', r.priorities = r'.priorities ∧ r.reactions = r'.reactions⟩
+\end{lstlisting}
+
+\noindent While some concepts used here\footnote{In particular, type class instances and anonymous constructors.} have not been explained, it suffices to know that this code adds a notion of equivalence to reactors, such that two reactors are equivalent if their \lstinline{priorities} and \lstinline{reactions} are equal.
+That is, we explicitly ignore their \lstinline{input}, \lstinline{output} and \lstinline{state}.
+If two reactors \lstinline{r} and \lstinline{r'} are equivalent, we can write \lstinline{r ≈ r'}.
+This notion of equivalence is lifted to \lstinline{inst.network.graph} and \lstinline{inst.network}:
+
+\begin{lstlisting}
+instance equiv : has_equiv (inst.network.graph υ) := ⟨λ η η', 
+  η.edges = η'.edges ∧ η.ids = η'.ids ∧ 
+  ∀ i, (η.rtr i) ≈ (η'.rtr i)
+⟩
+
+instance equiv : has_equiv (inst.network υ) := 
+  ⟨λ n n', n.η ≈ n'.η⟩
+\end{lstlisting}
+
+\noindent Networks are equivalent if they have the same edges and IDs, while only containing equivalent reactors.
+Hence, again, only structure matters.
+Using equivalence allows us to prove some very useful results:
+
+\begin{itemize}
+  \item Equivalence of reactors preserves precedence-acyclicity:
+\begin{lstlisting}
+theorem equiv_prec_acyc_inv
+  {η η' : inst.network.graph υ} 
+  (hq : η ≈ η') (hₚ : η.is_prec_acyclic) :
+    η'.is_prec_acyclic
+\end{lstlisting}
+  \item Equivalence of reactors preserves uniqueness of connections to input-ports. We show a slightly stronger result here, by only requiring edges to be equal, which is a trivial consequence of equivalence:
+\begin{lstlisting}
+theorem eq_edges_unique_port_ins 
+  {η η' : inst.network.graph υ} 
+  (hₑ : η.edges = η'.edges) (hᵤ : η.has_unique_port_ins) :
+    η'.has_unique_port_ins
+\end{lstlisting}
+\end{itemize}
+
+\noindent Both of these results are integral in defining the \lstinline{run} function.
+Since \lstinline{run} returns not just an \lstinline{inst.network.graph}, but an \lstinline{inst.network}, we need to prove that the result of \lstinline{run_topo} (which is an \lstinline{inst.network.graph}) preserves precedence-acyclicity and input-uniqueness.
+This is done (inside of \lstinline{run_aux}) by using the theorems listed above, in combination with the proof that \lstinline{run_topo} produces an output that is equivalent to its input: 
+
+\begin{lstlisting}
+lemma run_topo_equiv 
+  (η : inst.network.graph υ) (t : list reaction.id) : 
+    run_topo η t ≈ η
+\end{lstlisting}
+
+\subsection{Independence of Topological Ordering}
+\label{section:indep}
+
+The uniqueness of the precedence function allows us to keep the first step of our proof of determinism self-contained.
+We don't even consider the \lstinline{run} function.  
+The remaining proof of determinism requires us to dive into the details of \lstinline{run}.
+
+As any given precedence graph may have multiple topological orderings, it is possible that there exist multiple different \lstinline{topo_func}s.
+Hence, we need to show that the result of \lstinline{run} is independent of which \lstinline{topo_func} is used.
+By extension, the result of \lstinline{run_topo} needs to be proven to be independent of the given topological ordering.
+This is captured by the proof that \lstinline{run_topo} is commutative:
+
+\lstset{numbers=left, xleftmargin=2em}
+\begin{lstlisting}
+theorem run_topo_comm 
+  {η : inst.network.graph υ} (hᵤ : η.has_unique_port_ins) 
+  {ρ : prec.graph υ} (hw : ρ ⋈ η) :
+    ∀ {t t' : list reaction.id} (hₚ : t ~ t')
+      (hₜ : t.is_topo_over ρ) (hₜ' : t'.is_topo_over ρ) , 
+      run_topo η t = run_topo η t' := ...
+\end{lstlisting}
+\lstset{numbers=none, xleftmargin=0em}
+
+\noindent The terrible legibility of this theorem is a result of there being many preconditions for the commutativity of \lstinline{run_topo}.
+The term ``commutative'' as used here\footnote{While this usage of ``commutative'' is uncommon in the broader mathematical community, it is canonical within Lean's mathematical library.}, is meant to express that we require the given topological orderings to be permutations of each other (Line 4 : \lstinline{t ~ t'}).\footnote{
+    The lemma \lstinline{topo.complete_perm} proves that this must hold for all topological orderings returned by a \lstinline{topo_func}.
+}
+We prove the theorem by induction over one of the topological orderings, using the following intermediate results.
+The notation $[..., ...]$ is used for lists, $r :: l$ denotes the list where element $r$ is prepended to list $l$, and $l - r$ denotes the list $l$ with all occurrences of $r$ removed:
+
+\begin{enumerate}
+    \item \lstinline{topo.indep_head}: If $t = [r_1, r_2, ..., r_n]$ is a topological ordering, then $r_1$ is not dependent on any other element in the list.
+    \item (1) + \lstinline{topo.erase_is_topo}: If $t = [r_1, r_2, ..., r_n]$ is a topological ordering and $t'$ is a permutation of $t$, then $r_1 :: (t' - r_1)$ is also a topological ordering.
+    That is, we can pull independent elements to the front of the list.
+    \item If $t$ is a topological ordering and $r$ is an independent element in $t$, then \lstinline{run_topo} produces the same output for $t$ and $r :: (t - r)$.
+\end{enumerate}
+
+\noindent While results 1 and 2 are general lemmas about topological orderings, result 3 is specific to \lstinline{run_topo} and shown by \lstinline{run_topo_swap}:
+
+\begin{lstlisting}
+lemma run_topo_swap 
+  {η : inst.network.graph υ} (hᵤ : η.has_unique_port_ins) 
+  {ρ : prec.graph υ} (hw : ρ ⋈ η) 
+  {t : list reaction.id} (hₜ : t.is_topo_over ρ) 
+  {i : reaction.id} (hₘ : i ∈ t) (hᵢ : topo.indep i t ρ) :
+    run_topo η t = run_topo η (i :: (t.erase i)) := ...
+\end{lstlisting}
+
+\noindent We again prove this result by induction over \lstinline{t}.
+As a result, it suffices to show that the order in which two independent reactions are executed is irrelevant.
+That is, running independent reactions is commutative:
+
+\lstset{numbers=left, xleftmargin=1.5em}
+\begin{lstlisting}
+lemma run_reaction_comm 
+  {η : inst.network.graph υ} (hᵤ : η.has_unique_port_ins) 
+  {ρ : prec.graph υ} (hw : ρ ⋈ η) 
+  {i i' : reaction.id} (hᵢ : ρ.indep i i') :
+    (η.run_reaction i).run_reaction i' = 
+    (η.run_reaction i').run_reaction i := ...
+\end{lstlisting}
+\lstset{numbers=none, xleftmargin=0em}
+
+\noindent We can prove this lemma with the following observations.
+If two reactions are independent of each other, they must (1) live in different reactors \emph{and} (2) cannot write to each other's dependencies. 
+Hence, they cannot affect each other's input-ports.
+Their outputs also cannot affect each other, as we've restrained input-ports to have at most one incoming connection (Line 2: \lstinline{hᵤ}).
+Therefore, independent reactions neither affect each other's inputs, nor conflict in their outputs.
+Thus, their order of execution can be swapped.
+While the idea behind this proof is rather simple, the intermediate results required for this proof are far-reaching and laborious.
+Hence, we omit any further details here.
+
+\vspace{3mm}
+
+\noindent Using the theorem \lstinline{run_topo_comm} we can complete our proof of \lstinline{determinism} (Figure \ref{fig:proof}).
+Thus, determinism of instantaneous reactor networks is governed by two main factors:
+
+\begin{enumerate}
+    \item Equality of all well-formed precedence graphs over a fixed network graph.
+    \item Independence of \lstinline{run_topo} from a specific topological ordering.
+\end{enumerate}
+
+\noindent It is also important to be clear that determinism, as we have shown it, depends on two assumptions: \footnote{Further assumptions are implicit in the model.} 
+
+\begin{enumerate}
+  \item There exists an instance of \lstinline{prec_func}. 
+  This could be proven either constructively by providing an algorithm, or non-constructively.
+  \item There exists an instance of \lstinline{topo_func}. 
+  Proving this is of less importance, as it is a well-known result that all directed acyclic graphs have a topological ordering.
+\end{enumerate}
+
+\begin{figure}[htbp!]
+\begin{lstlisting}
+theorem determinism 
+  (σ : inst.network υ) (p p' : prec_func υ) (t t' : topo_func υ) : 
+  σ.run p t = σ.run p' t' := 
+  begin
+    rewrite prec_func.unique p' p,
+    unfold run run_aux,
+    suffices h : 
+      σ.η.run_topo (t (p' σ)) = σ.η.run_topo (t' (p' σ)), 
+      by simp only [h],
+    have hw, from p'.well_formed σ,
+    have hₜ, from t.is_topo hw,
+    have hₜ', from t'.is_topo hw,
+    have hₚ, from topo.complete_perm hₜ hₜ',
+    exact graph.run_topo_comm σ.unique_ins hw hₜ.left hₜ'.left hₚ
+  end
+\end{lstlisting}
+\caption{Proof of determinism of the Instantaneous Reactor model}
+\label{fig:proof}
+\end{figure}
