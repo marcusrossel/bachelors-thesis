@@ -5,4 +5,5 @@ This repository contains a [Lean](https://github.com/leanprover-community/lean)-
 ## Resources
 
 * [Bachelor Thesis](https://github.com/marcusrossel/bachelor-thesis-text/blob/main/Main/Main.pdf)
+* [Defense Talk](https://github.com/marcusrossel/bachelors-thesis-defense/blob/main/talk.pdf)
 * [Talk about Lean](https://github.com/marcusrossel/lean-talk/blob/main/talk.pdf)
